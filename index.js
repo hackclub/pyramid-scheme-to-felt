@@ -24,7 +24,7 @@ const records = await table.select({
 const headers = Object.keys(records[0].fields);
 
 // Define the specific fields we want
-const desiredFields = ['Longitude', 'Latitude', 'Submitted At', 'Picture'];
+const desiredFields = ['Latitude', 'Longitude', 'Picture', 'Submitted At'];
 
 // Prepare data for CSV
 const data = records.map(record => 
@@ -61,3 +61,52 @@ const csvData = await new Promise((resolve, reject) => {
 fs.writeFileSync(path.join(__dirname, 'offerings.csv'), csvData);
 
 console.log('CSV file with headers has been created.');
+
+// Import required modules
+const fetch = require('node-fetch');
+const FormData = require('form-data');
+
+// Read environment variables
+const feltApiKey = process.env.FELT_API_KEY;
+const feltMapId = process.env.FELT_MAP_ID;
+
+// Function to create a new layer in Felt map
+async function createFeltLayer(csvData) {
+  const uploadResponse = await fetch(`https://felt.com/api/v2/maps/${feltMapId}/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${feltApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: 'Poster Submissions'
+    })
+  });
+
+  const uploadData = await uploadResponse.json();
+
+  if (uploadData.url) {
+    console.log('Felt S3 upload URL:', uploadData.url);  // Print the S3 URL
+
+    const form = new FormData();
+    Object.entries(uploadData.presigned_attributes).forEach(([key, value]) => {
+      form.append(key, value);
+    });
+    form.append('file', Buffer.from(csvData), {
+      filename: 'offerings.csv',
+      contentType: 'text/csv'
+    });
+
+    await fetch(uploadData.url, {
+      method: 'POST',
+      body: form
+    });
+
+    console.log('Layer created successfully in Felt map');
+  } else {
+    console.error('Failed to get upload URL from Felt');
+  }
+}
+
+// Call the function to create the layer
+createFeltLayer(csvData);
