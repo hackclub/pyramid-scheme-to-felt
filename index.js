@@ -88,30 +88,75 @@ async function hostCSVWithNgrok(csvData) {
   return { url: `${url}/offerings.csv`, server };
 }
 
-// Function to create a new layer in Felt map
-async function createFeltLayer(csvUrl) {
+// Function to check if a layer exists in Felt map
+async function checkLayerExists(feltMapId, layerName) {
   const feltApiKey = process.env.FELT_API_KEY;
-  const feltMapId = process.env.FELT_MAP_ID;
 
-  const uploadResponse = await fetch(`https://felt.com/api/v2/maps/${feltMapId}/upload`, {
-    method: 'POST',
+  const response = await fetch(`https://felt.com/api/v2/maps/${feltMapId}/layers`, {
+    method: 'GET',
     headers: {
       'Authorization': `Bearer ${feltApiKey}`,
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: 'Poster Submissions',
-      import_url: `${csvUrl}`
-    })
+    }
   });
 
-  const uploadData = await uploadResponse.json();
-  console.log('Felt response:', uploadData);
+  const layers = await response.json();
+  return layers.some(layer => layer.name === layerName);
+}
 
-  if (uploadData.layer_id) {
-    console.log('Layer created successfully in Felt map');
+// Function to create or refresh a layer in Felt map
+async function createOrRefreshFeltLayer(csvUrl) {
+  const feltApiKey = process.env.FELT_API_KEY;
+  const feltMapId = process.env.FELT_MAP_ID;
+  const layerName = 'Poster Submissions';
+
+  const layerExists = await checkLayerExists(feltMapId, layerName);
+
+  if (layerExists) {
+    // Refresh the existing layer
+    const layers = await fetch(`https://felt.com/api/v2/maps/${feltMapId}/layers`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${feltApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    }).then(res => res.json());
+
+    const existingLayer = layers.find(layer => layer.name === layerName);
+    
+    if (existingLayer) {
+      const refreshResponse = await fetch(`https://felt.com/api/v2/maps/${feltMapId}/layers/${existingLayer.id}/refresh`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${feltApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          import_url: csvUrl
+        })
+      });
+
+      const refreshData = await refreshResponse.json();
+      console.log('Layer refreshed successfully in Felt map');
+      return refreshData;
+    }
   } else {
-    console.error('Failed to create layer in Felt map');
+    // Create a new layer
+    const uploadResponse = await fetch(`https://felt.com/api/v2/maps/${feltMapId}/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${feltApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: layerName,
+        import_url: csvUrl
+      })
+    });
+
+    const uploadData = await uploadResponse.json();
+    console.log('New layer created successfully in Felt map');
+    return uploadData;
   }
 }
 
@@ -119,11 +164,10 @@ async function createFeltLayer(csvUrl) {
 async function main() {
   try {
     const { url, server } = await hostCSVWithNgrok(csvData);
-    await createFeltLayer(url);
+    await createOrRefreshFeltLayer(url);
 
-    // Sleep for 10 seconds
-    await new Promise(resolve => setTimeout(resolve, 30000));
-    console.log('Waited for 30 seconds');
+    await new Promise(resolve => setTimeout(resolve, 15 * 1000));
+    console.log('Waited for 15 seconds');
 
     // Clean up
     await ngrok.disconnect();
