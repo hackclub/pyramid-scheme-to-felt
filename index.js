@@ -162,20 +162,43 @@ async function createOrRefreshFeltLayer(csvUrl) {
 
 // Main function to orchestrate the process
 async function main() {
+  let server;
   try {
-    const { url, server } = await hostCSVWithNgrok(csvData);
-    await createOrRefreshFeltLayer(url);
+    const result = await hostCSVWithNgrok(csvData);
+    server = result.server;
+    await createOrRefreshFeltLayer(result.url);
 
+    console.log('Waiting for 15 seconds...');
     await new Promise(resolve => setTimeout(resolve, 15 * 1000));
     console.log('Waited for 15 seconds');
 
-    // Clean up
-    await ngrok.disconnect();
-    server.close();
   } catch (error) {
     console.error('Error:', error);
+  } finally {
+    // Clean up
+    console.log('Cleaning up...');
+    if (server) {
+      server.close(() => {
+        console.log('Express server closed');
+      });
+    }
+    try {
+      await ngrok.disconnect();
+      console.log('Ngrok disconnected');
+    } catch (error) {
+      console.error('Error disconnecting ngrok:', error);
+    }
+    
+    // Force exit after a short delay
+    setTimeout(() => {
+      console.log('Exiting program');
+      process.exit(0);
+    }, 1000);
   }
 }
 
 // Run the main function
-main();
+main().catch(error => {
+  console.error('Unhandled error in main:', error);
+  process.exit(1);
+});
