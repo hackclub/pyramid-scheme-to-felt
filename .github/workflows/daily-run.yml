@@ -1,9 +1,11 @@
-name: Daily Run
+name: Daily Run and Manual Trigger
 
 on:
   schedule:
     # Runs at midnight UTC every day
     - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allows manual triggering of the workflow
 
 jobs:
   run-script:
