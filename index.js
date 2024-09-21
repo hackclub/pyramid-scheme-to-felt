@@ -9,6 +9,10 @@ const path = require('path');
 const csv = require('csv-stringify');
 require('dotenv').config();
 
+const ngrok = require('ngrok');
+const express = require('express');
+const fetch = require('node-fetch');
+
 // Initialize Airtable
 const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID);
 
@@ -57,21 +61,38 @@ const csvData = await new Promise((resolve, reject) => {
   });
 });
 
-// Write CSV to file
-fs.writeFileSync(path.join(__dirname, 'offerings.csv'), csvData);
+// Function to create a temporary server and get a public URL
+async function hostCSVWithNgrok(csvData) {
+  const app = express();
+  const port = 3000;
 
-console.log('CSV file with headers has been created.');
+  app.get('/offerings.csv', (req, res) => {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=offerings.csv');
+    res.send(csvData);
+  });
 
-// Import required modules
-const fetch = require('node-fetch');
-const FormData = require('form-data');
+  const server = app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
 
-// Read environment variables
-const feltApiKey = process.env.FELT_API_KEY;
-const feltMapId = process.env.FELT_MAP_ID;
+  // Connect to Ngrok with explicit configuration
+  const url = await ngrok.connect({
+    addr: port,
+    authtoken: process.env.NGROK_AUTH_TOKEN,
+    subdomain: process.env.NGROK_SUBDOMAIN,
+    configPath: undefined,
+  });
+  console.log(`Ngrok tunnel created: ${url}`);
+
+  return { url: `${url}/offerings.csv`, server };
+}
 
 // Function to create a new layer in Felt map
-async function createFeltLayer(csvData) {
+async function createFeltLayer(csvUrl) {
+  const feltApiKey = process.env.FELT_API_KEY;
+  const feltMapId = process.env.FELT_MAP_ID;
+
   const uploadResponse = await fetch(`https://felt.com/api/v2/maps/${feltMapId}/upload`, {
     method: 'POST',
     headers: {
@@ -79,34 +100,38 @@ async function createFeltLayer(csvData) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      name: 'Poster Submissions'
+      name: 'Poster Submissions',
+      import_url: `${csvUrl}`
     })
   });
 
   const uploadData = await uploadResponse.json();
+  console.log('Felt response:', uploadData);
 
-  if (uploadData.url) {
-    console.log('Felt S3 upload URL:', uploadData.url);  // Print the S3 URL
-
-    const form = new FormData();
-    Object.entries(uploadData.presigned_attributes).forEach(([key, value]) => {
-      form.append(key, value);
-    });
-    form.append('file', Buffer.from(csvData), {
-      filename: 'offerings.csv',
-      contentType: 'text/csv'
-    });
-
-    await fetch(uploadData.url, {
-      method: 'POST',
-      body: form
-    });
-
+  if (uploadData.layer_id) {
     console.log('Layer created successfully in Felt map');
   } else {
-    console.error('Failed to get upload URL from Felt');
+    console.error('Failed to create layer in Felt map');
   }
 }
 
-// Call the function to create the layer
-createFeltLayer(csvData);
+// Main function to orchestrate the process
+async function main() {
+  try {
+    const { url, server } = await hostCSVWithNgrok(csvData);
+    await createFeltLayer(url);
+
+    // Sleep for 10 seconds
+    await new Promise(resolve => setTimeout(resolve, 30000));
+    console.log('Waited for 30 seconds');
+
+    // Clean up
+    await ngrok.disconnect();
+    server.close();
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+// Run the main function
+main();
