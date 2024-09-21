@@ -26,23 +26,6 @@ jobs:
       - name: Verify Bun
         run: bun --version
 
-      # Set up environment variables from GitHub Secrets
-      - name: Set Environment Variables
-        env:
-          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
-          AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-          NGROK_SUBDOMAIN: ${{ secrets.NGROK_SUBDOMAIN }}
-          FELT_API_KEY: ${{ secrets.FELT_API_KEY }}
-          FELT_MAP_ID: ${{ secrets.FELT_MAP_ID }}
-        run: |
-          echo "AIRTABLE_API_KEY=${AIRTABLE_API_KEY}" >> $GITHUB_ENV
-          echo "AIRTABLE_BASE_ID=${AIRTABLE_BASE_ID}" >> $GITHUB_ENV
-          echo "NGROK_AUTH_TOKEN=${NGROK_AUTH_TOKEN}" >> $GITHUB_ENV
-          echo "NGROK_SUBDOMAIN=${NGROK_SUBDOMAIN}" >> $GITHUB_ENV
-          echo "FELT_API_KEY=${FELT_API_KEY}" >> $GITHUB_ENV
-          echo "FELT_MAP_ID=${FELT_MAP_ID}" >> $GITHUB_ENV
-
       # Install dependencies (if any)
       - name: Install Dependencies
         run: bun install
@@ -50,3 +33,10 @@ jobs:
       # Run the script
       - name: Execute Script
         run: bun run index.js
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+          AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          NGROK_SUBDOMAIN: ${{ secrets.NGROK_SUBDOMAIN }}
+          FELT_API_KEY: ${{ secrets.FELT_API_KEY }}
+          FELT_MAP_ID: ${{ secrets.FELT_MAP_ID }}
