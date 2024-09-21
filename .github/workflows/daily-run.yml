@@ -26,7 +26,7 @@ jobs:
       - name: Verify Bun
         run: bun --version
 
-      # Install dependencies (if any)
+      # Install dependencies
       - name: Install Dependencies
         run: bun install
 
