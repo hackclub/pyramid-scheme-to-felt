@@ -27,7 +27,7 @@ const {
 const AIRTABLE_TABLE_NAME = 'poster submissions';
 const FELT_LAYER_NAME = 'Poster Submissions';
 const PORT = 3000;
-const NGROK_TIMEOUT = 15000; // milliseconds
+const NGROK_TIMEOUT = 5000; // milliseconds
 
 // Initialize Airtable
 const airtableBase = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
